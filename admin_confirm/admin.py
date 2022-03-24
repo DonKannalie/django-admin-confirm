@@ -2,7 +2,7 @@ from typing import Dict
 from django.contrib.admin.exceptions import DisallowedModelAdminToField
 from django.contrib.admin.utils import flatten_fieldsets, unquote
 from django.core.cache import cache
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, FieldDoesNotExist
 from django.template.response import TemplateResponse
 from django.contrib.admin.options import TO_FIELD_VAR
 from django.utils.translation import gettext as _
@@ -189,18 +189,22 @@ class AdminConfirmMixin:
                 # It could be incorrect when user hits save, and then hits "No, go back to edit"
                 obj.refresh_from_db()
 
-                field_object = model._meta.get_field(name)
-                initial_value = getattr(obj, name)
+                try:
+                    field_object = model._meta.get_field(name)
+                    initial_value = getattr(obj, name)
 
-                # Note: getattr does not work on ManyToManyFields
-                if isinstance(field_object, ManyToManyField):
-                    initial_value = field_object.value_from_object(obj)
+                    # Note: getattr does not work on ManyToManyFields
+                    if isinstance(field_object, ManyToManyField):
+                        initial_value = field_object.value_from_object(obj)
 
-                if initial_value != new_value:
-                    changed_data[name] = _display_for_changed_data(
-                        field_object, initial_value, new_value
-                    )
-
+                    if initial_value != new_value:
+                        changed_data[name] = _display_for_changed_data(
+                            field_object, initial_value, new_value
+                        )
+                except FieldDoesNotExist:
+                    # Field is not in model. E.g. set only in form. 
+                    pass
+                
         return changed_data
 
     def _confirmation_received_view(self, request, object_id, form_url, extra_context):
