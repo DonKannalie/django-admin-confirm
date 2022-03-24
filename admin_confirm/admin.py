@@ -29,6 +29,7 @@ from admin_confirm.constants import (
 )
 from admin_confirm.file_cache import FileCache
 
+from django.db.models.fields.files import FieldFile
 
 class AdminConfirmMixin:
     # Should we ask for confirmation for changes?
@@ -193,18 +194,29 @@ class AdminConfirmMixin:
                     field_object = model._meta.get_field(name)
                     initial_value = getattr(obj, name)
 
+
                     # Note: getattr does not work on ManyToManyFields
                     if isinstance(field_object, ManyToManyField):
                         initial_value = field_object.value_from_object(obj)
 
                     if initial_value != new_value:
+                        ## stupid None != ""
+                        if initial_value is None and new_value == "":
+                            continue
+                        if initial_value is None and new_value is None:
+                            continue
+                        if initial_value == "" and new_value is None:
+                            continue
+                        if isinstance(initial_value, FieldFile):
+                            continue
+
                         changed_data[name] = _display_for_changed_data(
                             field_object, initial_value, new_value
                         )
                 except FieldDoesNotExist:
-                    # Field is not in model. E.g. set only in form. 
+                    # Field is not in model. E.g. set only in form.
                     pass
-                
+
         return changed_data
 
     def _confirmation_received_view(self, request, object_id, form_url, extra_context):
